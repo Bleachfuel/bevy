@@ -1,5 +1,4 @@
 //! Batching functionality when GPU preprocessing is in use.
-
 use bevy_app::{App, Plugin};
 use bevy_ecs::{
     entity::{Entity, EntityHashMap},
@@ -211,7 +210,23 @@ where
     /// Removes a piece of buffered data from the uniform buffer.
     ///
     /// This simply marks the data as free.
+    ///
+    /// # Panics
+    ///
+    /// If [`Self::buffer`] lenght < `uniform_index`.
     pub fn remove(&mut self, uniform_index: u32) {
+
+        assert!((uniform_index as usize) < self.buffer.len());
+        if !self.free_uniform_indices.contains(&uniform_index) {
+            self.free_uniform_indices.push(uniform_index);
+        }
+    }
+
+    /// Removes a piece of buffered data from the uniform buffer.
+    ///
+    /// Ensure uniform_index is within bounds of [`Self::buffer`] and not removed twice,
+    /// as this may cause incorrect behavior or panicking when inserting new data.
+    pub fn remove_unchecked(&mut self, uniform_index: u32) {
         self.free_uniform_indices.push(uniform_index);
     }
 
@@ -220,7 +235,10 @@ where
     /// Returns [`None`] if the index is out of bounds or the data is removed.
     pub fn get(&self, uniform_index: u32) -> Option<BDI> {
         if (uniform_index as usize) >= self.buffer.len()
-            || self.free_uniform_indices.contains(&uniform_index)
+            || self
+                .free_uniform_indices
+                .binary_search(&uniform_index)
+                .is_ok()
         {
             None
         } else {
@@ -957,5 +975,14 @@ mod tests {
 
         instance_buffer.add(5);
         assert_eq!(instance_buffer.buffer().len(), 1);
+
+        // removing the same index twice should not overwrite twice when adding data.
+        instance_buffer.remove(index);
+        instance_buffer.remove(index);
+
+        instance_buffer.add(4);
+        instance_buffer.add(6);
+        assert_eq!(instance_buffer.get(index), Some(4));
+
     }
 }

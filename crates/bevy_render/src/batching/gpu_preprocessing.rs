@@ -213,9 +213,8 @@ where
     ///
     /// # Panics
     ///
-    /// If [`Self::buffer`] lenght < `uniform_index`.
+    /// If [`Self::buffer`] length < `uniform_index`.
     pub fn remove(&mut self, uniform_index: u32) {
-
         assert!((uniform_index as usize) < self.buffer.len());
         if !self.free_uniform_indices.contains(&uniform_index) {
             self.free_uniform_indices.push(uniform_index);
@@ -235,10 +234,7 @@ where
     /// Returns [`None`] if the index is out of bounds or the data is removed.
     pub fn get(&self, uniform_index: u32) -> Option<BDI> {
         if (uniform_index as usize) >= self.buffer.len()
-            || self
-                .free_uniform_indices
-                .binary_search(&uniform_index)
-                .is_ok()
+            || self.free_uniform_indices.contain(uniform_index)
         {
             None
         } else {
@@ -983,6 +979,5 @@ mod tests {
         instance_buffer.add(4);
         instance_buffer.add(6);
         assert_eq!(instance_buffer.get(index), Some(4));
-
     }
 }

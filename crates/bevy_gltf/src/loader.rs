@@ -634,10 +634,7 @@ async fn load_gltf<'a, 'b, 'c>(
     for gltf_mesh in gltf.meshes() {
         let mut primitives = vec![];
         for primitive in gltf_mesh.primitives() {
-            let primitive_label = GltfAssetLabel::Primitive {
-                mesh: gltf_mesh.index(),
-                primitive: primitive.index(),
-            };
+            let primitive_label = GltfAssetLabel::primitive(gltf_mesh.index(), primitive.index());
             let primitive_topology = get_primitive_topology(primitive.mode())?;
 
             let mut mesh = Mesh::new(primitive_topology, settings.load_meshes);
@@ -680,10 +677,8 @@ async fn load_gltf<'a, 'b, 'c>(
             {
                 let morph_target_reader = reader.read_morph_targets();
                 if morph_target_reader.len() != 0 {
-                    let morph_targets_label = GltfAssetLabel::MorphTarget {
-                        mesh: gltf_mesh.index(),
-                        primitive: primitive.index(),
-                    };
+                    let morph_targets_label =
+                        GltfAssetLabel::morph_target(gltf_mesh.index(), primitive.index());
                     let morph_target_image = MorphTargetImage::new(
                         morph_target_reader.map(PrimitiveMorphAttributesIter),
                         mesh.count_vertices(),
@@ -1046,7 +1041,7 @@ async fn load_image<'a, 'b>(
             )?;
             Ok(ImageOrPath::Image {
                 image,
-                label: GltfAssetLabel::Texture(gltf_texture.index()),
+                label: GltfAssetLabel::texture(gltf_texture.index()),
             })
         }
         Source::Uri { uri, mime_type } => {
@@ -1068,7 +1063,7 @@ async fn load_image<'a, 'b>(
                         ImageSampler::Descriptor(sampler_descriptor),
                         render_asset_usages,
                     )?,
-                    label: GltfAssetLabel::Texture(gltf_texture.index()),
+                    label: GltfAssetLabel::texture(gltf_texture.index()),
                 })
             } else {
                 let image_path = parent_path.join(uri);
@@ -1499,10 +1494,8 @@ fn load_node(
                         load_material(&material, load_context, document, is_scale_inverted);
                     }
 
-                    let primitive_label = GltfAssetLabel::Primitive {
-                        mesh: mesh.index(),
-                        primitive: primitive.index(),
-                    };
+                    let primitive_label =
+                        GltfAssetLabel::primitive(mesh.index(), primitive.index());
                     let bounds = primitive.bounding_box();
 
                     let mut mesh_entity = parent.spawn((
@@ -1664,10 +1657,10 @@ fn load_node(
     // Only include meshes in the output if they're set to be retained in the MAIN_WORLD and/or RENDER_WORLD by the load_meshes flag
     if !settings.load_meshes.is_empty() {
         if let (Some(mesh), Some(weights)) = (gltf_node.mesh(), morph_weights) {
-            let primitive_label = mesh.primitives().next().map(|p| GltfAssetLabel::Primitive {
-                mesh: mesh.index(),
-                primitive: p.index(),
-            });
+            let primitive_label = mesh
+                .primitives()
+                .next()
+                .map(|p| GltfAssetLabel::primitive(mesh.index(), p.index()));
             let first_mesh =
                 primitive_label.map(|label| load_context.get_label_handle(label.to_string()));
             node.insert(MorphWeights::new(weights, first_mesh)?);
@@ -1693,11 +1686,7 @@ fn primitive_name(mesh: &gltf::Mesh, primitive: &Primitive) -> String {
 /// Returns the label for the `material`.
 fn material_label(material: &Material, is_scale_inverted: bool) -> String {
     if let Some(index) = material.index() {
-        GltfAssetLabel::Material {
-            index,
-            is_scale_inverted,
-        }
-        .to_string()
+        GltfAssetLabel::material(index, is_scale_inverted).to_string()
     } else {
         GltfAssetLabel::DefaultMaterial.to_string()
     }
@@ -1706,7 +1695,7 @@ fn material_label(material: &Material, is_scale_inverted: bool) -> String {
 fn texture_handle(load_context: &mut LoadContext, texture: &gltf::Texture) -> Handle<Image> {
     match texture.source().source() {
         Source::View { .. } => {
-            load_context.get_label_handle(GltfAssetLabel::Texture(texture.index()).to_string())
+            load_context.get_label_handle(GltfAssetLabel::texture(texture.index()).to_string())
         }
         Source::Uri { uri, .. } => {
             let uri = percent_encoding::percent_decode_str(uri)
@@ -1714,7 +1703,7 @@ fn texture_handle(load_context: &mut LoadContext, texture: &gltf::Texture) -> Ha
                 .unwrap();
             let uri = uri.as_ref();
             if let Ok(_data_uri) = DataUri::parse(uri) {
-                load_context.get_label_handle(GltfAssetLabel::Texture(texture.index()).to_string())
+                load_context.get_label_handle(GltfAssetLabel::texture(texture.index()).to_string())
             } else {
                 let parent = load_context.path().parent().unwrap();
                 let image_path = parent.join(uri);
@@ -1747,17 +1736,17 @@ fn texture_handle_from_info(
 
 /// Returns the label for the `scene`.
 fn scene_label(scene: &gltf::Scene) -> String {
-    GltfAssetLabel::Scene(scene.index()).to_string()
+    GltfAssetLabel::scene(scene.index()).to_string()
 }
 
 /// Return the label for the `skin`.
 fn skin_label(skin: &gltf::Skin) -> String {
-    GltfAssetLabel::Skin(skin.index()).to_string()
+    GltfAssetLabel::skin(skin.index()).to_string()
 }
 
 /// Return the label for the `inverseBindMatrices` of the node.
 fn inverse_bind_matrices_label(skin: &gltf::Skin) -> String {
-    GltfAssetLabel::InverseBindMatrices(skin.index()).to_string()
+    GltfAssetLabel::inverse_bind_matrices(skin.index()).to_string()
 }
 
 /// Extracts the texture sampler data from the glTF texture.
@@ -2394,10 +2383,17 @@ mod test {
         let gltf_node = gltf_node_assets
             .get(gltf_root.named_nodes.get("TestSingleNode").unwrap())
             .unwrap();
-        assert_eq!(gltf_node.name, "TestSingleNode", "Correct name");
+        assert_eq!(
+            gltf_node.name.as_ref().unwrap(),
+            "TestSingleNode",
+            "Correct name"
+        );
         assert_eq!(gltf_node.index, 0, "Correct index");
         assert_eq!(gltf_node.children.len(), 0, "No children");
-        assert_eq!(gltf_node.asset_label(), GltfAssetLabel::Node(0));
+        assert_eq!(
+            gltf_node.asset_label(),
+            GltfAssetLabel::node("TestSingleNode")
+        );
     }
 
     #[test]
@@ -2434,9 +2430,9 @@ mod test {
             .map(|h| gltf_node_assets.get(h).unwrap())
             .collect::<Vec<_>>();
         assert_eq!(result.len(), 2);
-        assert_eq!(result[0].name, "l1");
+        assert_eq!(result[0].name.as_ref().unwrap(), "l1");
         assert_eq!(result[0].children.len(), 0);
-        assert_eq!(result[1].name, "l2");
+        assert_eq!(result[1].name.as_ref().unwrap(), "l2");
         assert_eq!(result[1].children.len(), 0);
     }
 
@@ -2475,9 +2471,9 @@ mod test {
             .map(|h| gltf_node_assets.get(h).unwrap())
             .collect::<Vec<_>>();
         assert_eq!(result.len(), 2);
-        assert_eq!(result[0].name, "l1");
+        assert_eq!(result[0].name.as_ref().unwrap(), "l1");
         assert_eq!(result[0].children.len(), 1);
-        assert_eq!(result[1].name, "l2");
+        assert_eq!(result[1].name.as_ref().unwrap(), "l2");
         assert_eq!(result[1].children.len(), 0);
     }
 
@@ -2534,19 +2530,19 @@ mod test {
             .map(|h| gltf_node_assets.get(h).unwrap())
             .collect::<Vec<_>>();
         assert_eq!(result.len(), 7);
-        assert_eq!(result[0].name, "l1");
+        assert_eq!(result[0].name.as_ref().unwrap(), "l1");
         assert_eq!(result[0].children.len(), 1);
-        assert_eq!(result[1].name, "l2");
+        assert_eq!(result[1].name.as_ref().unwrap(), "l2");
         assert_eq!(result[1].children.len(), 1);
-        assert_eq!(result[2].name, "l3");
+        assert_eq!(result[2].name.as_ref().unwrap(), "l3");
         assert_eq!(result[2].children.len(), 3);
-        assert_eq!(result[3].name, "l4");
+        assert_eq!(result[3].name.as_ref().unwrap(), "l4");
         assert_eq!(result[3].children.len(), 1);
-        assert_eq!(result[4].name, "l5");
+        assert_eq!(result[4].name.as_ref().unwrap(), "l5");
         assert_eq!(result[4].children.len(), 0);
-        assert_eq!(result[5].name, "l6");
+        assert_eq!(result[5].name.as_ref().unwrap(), "l6");
         assert_eq!(result[5].children.len(), 0);
-        assert_eq!(result[6].name, "l7");
+        assert_eq!(result[6].name.as_ref().unwrap(), "l7");
         assert_eq!(result[6].children.len(), 0);
     }
 
@@ -2709,7 +2705,7 @@ mod test {
         assert!(gltf_inverse_bind_matrices.contains(&skin.inverse_bind_matrices));
 
         let skinned_node = gltf_node_assets.get(&gltf_root.nodes[0]).unwrap();
-        assert_eq!(skinned_node.name, "skinned");
+        assert_eq!(skinned_node.name.as_ref().unwrap(), "skinned");
         assert_eq!(skinned_node.children.len(), 2);
         assert_eq!(skinned_node.skin.as_ref(), Some(&gltf_root.skins[0]));
     }

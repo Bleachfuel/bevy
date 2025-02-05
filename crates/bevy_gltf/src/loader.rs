@@ -518,7 +518,7 @@ async fn load_gltf<'a, 'b, 'c>(
                 }
             }
             let handle = load_context.add_labeled_asset(
-                GltfAssetLabel::Animation(animation.index()).to_string(),
+                GltfAssetLabel::animation(animation.index()).to_string(),
                 animation_clip,
             );
             if let Some(name) = animation.name() {
@@ -792,7 +792,7 @@ async fn load_gltf<'a, 'b, 'c>(
 
     // First, create the node handles.
     for node in gltf.nodes() {
-        let label = GltfAssetLabel::Node(node.index());
+        let label = GltfAssetLabel::node(node.index());
         let label_handle = load_context.get_label_handle(label.to_string());
         nodes.insert(node.index(), label_handle);
     }
@@ -825,8 +825,7 @@ async fn load_gltf<'a, 'b, 'c>(
                 skinned_mesh_inverse_bindposes[skin.index()].clone(),
                 get_gltf_extras(skin.extras()),
             );
-
-            let handle = load_context.add_labeled_asset(skin_label(&skin), gltf_skin);
+            let handle = load_context.add_labeled_asset(gltf_skin.asset_label().to_string(), gltf_skin);
 
             skins.push(handle.clone());
             if let Some(name) = skin.name() {
@@ -1788,11 +1787,6 @@ fn scene_label(scene: &gltf::Scene) -> String {
     GltfAssetLabel::scene(scene.index()).to_string()
 }
 
-/// Return the label for the `skin`.
-fn skin_label(skin: &gltf::Skin) -> String {
-    GltfAssetLabel::skin(skin.index()).to_string()
-}
-
 /// Return the label for the `inverseBindMatrices` of the node.
 fn inverse_bind_matrices_label(skin: &gltf::Skin) -> String {
     GltfAssetLabel::inverse_bind_matrices(skin.index()).to_string()
@@ -2480,7 +2474,7 @@ mod test {
             .get(gltf_root.named_nodes.get("TestSingleNode").unwrap())
             .unwrap();
         assert_eq!(
-            gltf_node.name.as_ref().unwrap(),
+            gltf_node.name(),
             "TestSingleNode",
             "Correct name"
         );
@@ -2526,9 +2520,9 @@ mod test {
             .map(|h| gltf_node_assets.get(h).unwrap())
             .collect::<Vec<_>>();
         assert_eq!(result.len(), 2);
-        assert_eq!(result[0].name.as_ref().unwrap(), "l1");
+        assert_eq!(result[0].name(), "l1");
         assert_eq!(result[0].children.len(), 0);
-        assert_eq!(result[1].name.as_ref().unwrap(), "l2");
+        assert_eq!(result[1].name(), "l2");
         assert_eq!(result[1].children.len(), 0);
     }
 
@@ -2567,9 +2561,9 @@ mod test {
             .map(|h| gltf_node_assets.get(h).unwrap())
             .collect::<Vec<_>>();
         assert_eq!(result.len(), 2);
-        assert_eq!(result[0].name.as_ref().unwrap(), "l1");
+        assert_eq!(result[0].name(), "l1");
         assert_eq!(result[0].children.len(), 1);
-        assert_eq!(result[1].name.as_ref().unwrap(), "l2");
+        assert_eq!(result[1].name(), "l2");
         assert_eq!(result[1].children.len(), 0);
     }
 
@@ -2626,19 +2620,19 @@ mod test {
             .map(|h| gltf_node_assets.get(h).unwrap())
             .collect::<Vec<_>>();
         assert_eq!(result.len(), 7);
-        assert_eq!(result[0].name.as_ref().unwrap(), "l1");
+        assert_eq!(result[0].name(), "l1");
         assert_eq!(result[0].children.len(), 1);
-        assert_eq!(result[1].name.as_ref().unwrap(), "l2");
+        assert_eq!(result[1].name(), "l2");
         assert_eq!(result[1].children.len(), 1);
-        assert_eq!(result[2].name.as_ref().unwrap(), "l3");
+        assert_eq!(result[2].name(), "l3");
         assert_eq!(result[2].children.len(), 3);
-        assert_eq!(result[3].name.as_ref().unwrap(), "l4");
+        assert_eq!(result[3].name(), "l4");
         assert_eq!(result[3].children.len(), 1);
-        assert_eq!(result[4].name.as_ref().unwrap(), "l5");
+        assert_eq!(result[4].name(), "l5");
         assert_eq!(result[4].children.len(), 0);
-        assert_eq!(result[5].name.as_ref().unwrap(), "l6");
+        assert_eq!(result[5].name(), "l6");
         assert_eq!(result[5].children.len(), 0);
-        assert_eq!(result[6].name.as_ref().unwrap(), "l7");
+        assert_eq!(result[6].name(), "l7");
         assert_eq!(result[6].children.len(), 0);
     }
 
@@ -2801,7 +2795,7 @@ mod test {
         assert!(gltf_inverse_bind_matrices.contains(&skin.inverse_bind_matrices));
 
         let skinned_node = gltf_node_assets.get(&gltf_root.nodes[0]).unwrap();
-        assert_eq!(skinned_node.name.as_ref().unwrap(), "skinned");
+        assert_eq!(skinned_node.name(), "skinned");
         assert_eq!(skinned_node.children.len(), 2);
         assert_eq!(skinned_node.skin.as_ref(), Some(&gltf_root.skins[0]));
     }

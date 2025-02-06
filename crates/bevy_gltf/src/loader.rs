@@ -517,13 +517,19 @@ async fn load_gltf<'a, 'b, 'c>(
                     );
                 }
             }
-            let handle = load_context.add_labeled_asset(
-                GltfAssetLabel::animation(animation.index()).to_string(),
-                animation_clip,
-            );
-            if let Some(name) = animation.name() {
-                named_animations.insert(name.into(), handle.clone());
-            }
+            let label = GltfAssetLabel::animation(animation.index());
+            let scene_handle = if let Some(name) = animation.name() {
+                let alias = GltfAssetLabel::animation(name);
+                let handle = load_context.add_labeled_asset_with_alias(
+                    label.to_string(),
+                    alias.to_string(),
+                    loaded_scene,
+                );
+                named_scenes.insert(name.into(), handle.clone());
+                handle
+            } else {
+                load_context.add_labeled_asset(label.to_string(), loaded_scene)
+            };
             animations.push(handle);
         }
         (animations, named_animations, animation_roots)
@@ -760,13 +766,21 @@ async fn load_gltf<'a, 'b, 'c>(
 
         let mesh =
             super::GltfMesh::new(&gltf_mesh, primitives, get_gltf_extras(gltf_mesh.extras()));
-
-        let handle = load_context.add_labeled_asset(mesh.asset_label().to_string(), mesh);
-        if let Some(name) = gltf_mesh.name() {
+        let label = GltfAssetLabel::mesh(gltf_mesh.index());
+        let handle = if let Some(name) = gltf_mesh.name() {
+            let alias = GltfAssetLabel::mesh(name);
+            let handle = load_context.add_labeled_asset_with_alias(
+                label.to_string(),
+                alias.to_string(),
+                mesh,
+            );
             named_meshes.insert(name.into(), handle.clone());
-        }
+            handle
+        } else {
+            load_context.add_labeled_asset(label.to_string(), mesh)
+        };
         meshes.push(handle);
-    }
+    };
 
     let skinned_mesh_inverse_bindposes: Vec<_> = gltf
         .skins()
@@ -825,13 +839,20 @@ async fn load_gltf<'a, 'b, 'c>(
                 skinned_mesh_inverse_bindposes[skin.index()].clone(),
                 get_gltf_extras(skin.extras()),
             );
-            let handle = load_context.add_labeled_asset(gltf_skin.asset_label().to_string(), gltf_skin);
-
-            skins.push(handle.clone());
-            if let Some(name) = skin.name() {
+            let label = GltfAssetLabel::skin(skin.index());
+            let handle = if let Some(name) = skin.name() {
+                let alias = GltfAssetLabel::skin(name);
+                let handle = load_context.add_labeled_asset_with_alias(
+                    label.to_string(),
+                    alias.to_string(),
+                    gltf_skin,
+                );
                 named_skins.insert(name.into(), handle.clone());
-            }
-
+                handle
+            } else {
+                load_context.add_labeled_asset(label.to_string(), gltf_skin)
+            };
+            skins.push(handle.clone());
             handle
         });
 
@@ -856,12 +877,20 @@ async fn load_gltf<'a, 'b, 'c>(
 
         #[cfg(feature = "bevy_animation")]
         let gltf_node = gltf_node.with_animation_root(animation_roots.contains(&node.index()));
-
-        let handle = load_context.add_labeled_asset(gltf_node.asset_label().to_string(), gltf_node);
-        nodes.insert(node.index(), handle.clone());
-        if let Some(name) = node.name() {
-            named_nodes.insert(name.into(), handle);
-        }
+        let label = GltfAssetLabel::node(node.index());
+        let handle = if let Some(name) = node.name() {
+            let alias = GltfAssetLabel::node(name);
+            let handle = load_context.add_labeled_asset_with_alias(
+                label.to_string(),
+                alias.to_string(),
+                gltf_node,
+            );
+            named_nodes.insert(name.into(), handle.clone());
+            handle
+        } else {
+            load_context.add_labeled_asset(label.to_string(), gltf_node)
+        };
+        nodes.insert(node.index(), handle);
     }
 
     let mut nodes_to_sort = nodes.into_iter().collect::<Vec<_>>();
@@ -946,11 +975,19 @@ async fn load_gltf<'a, 'b, 'c>(
             });
         }
         let loaded_scene = scene_load_context.finish(Scene::new(world));
-        let scene_handle = load_context.add_loaded_labeled_asset(scene_label(&scene), loaded_scene);
 
-        if let Some(name) = scene.name() {
-            named_scenes.insert(name.into(), scene_handle.clone());
-        }
+        let scene_handle = if let Some(name) = scene.name() {
+            let alias = GltfAssetLabel::scene(name);
+            let handle = load_context.add_loaded_labeled_asset_with_alias(
+                scene_label(&scene),
+                alias.to_string(),
+                loaded_scene,
+            );
+            named_scenes.insert(name.into(), handle.clone());
+            handle
+        } else {
+            load_context.add_loaded_labeled_asset(scene_label(&scene), loaded_scene)
+        };
         scenes.push(scene_handle);
     }
 
@@ -1112,8 +1149,12 @@ fn load_material(
     document: &Document,
     is_scale_inverted: bool,
 ) -> Handle<StandardMaterial> {
-    let material_label = material_label(material, is_scale_inverted);
-    load_context.labeled_asset_scope(material_label, |load_context| {
+    let label = material_label(material, is_scale_inverted);
+    let alias = material
+        .name()
+        .map(|name| GltfAssetLabel::material(name.to_string(), is_scale_inverted).to_string());
+    
+    load_context.labeled_asset_scope(label, alias, |load_context| {
         let pbr = material.pbr_metallic_roughness();
 
         // TODO: handle missing label handle errors here?
@@ -2473,11 +2514,7 @@ mod test {
         let gltf_node = gltf_node_assets
             .get(gltf_root.named_nodes.get("TestSingleNode").unwrap())
             .unwrap();
-        assert_eq!(
-            gltf_node.name(),
-            "TestSingleNode",
-            "Correct name"
-        );
+        assert_eq!(gltf_node.name(), "TestSingleNode", "Correct name");
         assert_eq!(gltf_node.index, 0, "Correct index");
         assert_eq!(gltf_node.children.len(), 0, "No children");
         assert_eq!(

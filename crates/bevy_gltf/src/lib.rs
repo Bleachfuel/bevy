@@ -451,7 +451,10 @@ impl GltfPrimitive {
         if let Some(name) = &self.name {
             Cow::Borrowed(name)
         } else {
-            Cow::Owned(format!("Mesh:{}/Primitive:{}", self.parent_mesh_index, self.index))
+            Cow::Owned(format!(
+                "Mesh:{}/Primitive:{}",
+                self.parent_mesh_index, self.index
+            ))
         }
     }
 }
@@ -586,7 +589,7 @@ impl From<usize> for Label {
     }
 }
 
-impl From<&'static str> for Label{
+impl From<&'static str> for Label {
     fn from(name: &'static str) -> Self {
         Label::Name(Cow::Borrowed(name))
     }
@@ -658,7 +661,7 @@ impl GltfAssetLabel {
     }
 
     /// Creates a `GltfAssetLabel::Scene` from a [`Label`] which can either be a name or index.
-    /// 
+    ///
     pub fn scene<T: Into<Label>>(label: T) -> Self {
         Self::Scene(label.into())
     }
@@ -702,7 +705,7 @@ impl GltfAssetLabel {
     }
 
     /// Creates a `GltfAssetLabel::Primitive` from a [`Label`] which can either be a name or index.
-    /// 
+    ///
     /// `mesh` is the mesh that this primitive is part of and `primitive` is the index of this primitive in the mesh.
     pub fn primitive<T: Into<Label>>(mesh: T, primitive: usize) -> Self {
         Self::Primitive {
@@ -712,7 +715,7 @@ impl GltfAssetLabel {
     }
 
     /// Creates a `GltfAssetLabel::MorphTarget` from a [`Label`] which can either be a name or index.
-    /// 
+    ///
     /// `mesh` is the mesh that this primitive is part of and `primitive` is the index of this primitive in the mesh.
     pub fn morph_target<T: Into<Label>>(mesh: T, primitive: usize) -> Self {
         Self::MorphTarget {
